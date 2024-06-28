@@ -6,8 +6,12 @@ import warnings
 import lightgbm as lgb
 import datetime
 from sklearn.model_selection import train_test_split, RandomizedSearchCV
+import matplotlib.pyplot as plt
 
 warnings.filterwarnings('ignore')
+
+not_modeling_variables = ['date', 'stock', 'date_refreshed', 'dif', 'target',
+                          'high', 'low', 'close', 'volume']
 
 def get_data(ticker, api_key='8JDWE75B6RS73XYH'):
     # Get data from api
@@ -61,18 +65,18 @@ def stock_feature_prep(df):
     df['dif'] = df['close'].pct_change() * 100
 
     for column in ['open', 'high', 'low', 'close', 'volume']:
-        for day in [3, 7, 15, 30]:
+        for day in [1, 3, 7, 15, 30]:
             # Calculate moving average
-            df[f'{column}_avg_{day}'] = df[column].rolling(window=day).mean()
+            df[f'{column}_avg_{day}'] = df[column].rolling(window=day).mean().shift(1)
 
             # Calculate maximum from previous row
-            df[f'{column}_max_{day}'] = df['close'].rolling(window=day).max().shift()
+            df[f'{column}_max_{day}'] = df['close'].rolling(window=day).max().shift(1)
 
             # Calculate minimum from previous row
-            df[f'{column}_min_{day}'] = df['close'].rolling(window=day).min().shift()
+            df[f'{column}_min_{day}'] = df['close'].rolling(window=day).min().shift(1)
 
             # Calculate standard deviation from previous row
-            df[f'{column}_std_{day}'] = df['close'].rolling(window=day).std().shift()
+            df[f'{column}_std_{day}'] = df['close'].rolling(window=day).std().shift(1)
 
             # Calculate the value based on the lag
             df[f'{column}_lag_{day}'] = df['close'].shift(day)
@@ -88,7 +92,7 @@ def stock_feature_prep(df):
     return df
 
 def modeling(df):
-    X = df.drop(columns=['date', 'stock', 'date_refreshed', 'dif', 'target'])
+    X = df[[columns for columns in df.columns if columns not in not_modeling_variables]]
     y = df['target']
 
     # Split the data into train and test sets
@@ -98,16 +102,21 @@ def modeling(df):
     param_grid = {
         'boosting_type': ['gbdt', 'dart', 'goss'],
         'num_leaves': [20, 30, 40],
-        'learning_rate': [0.1, 0.01, 0.001],
-        'n_estimators': [50, 100, 200],
-        'max_depth': [5, 10, 15, 20],
+        'learning_rate': [0.1, 0.01],
+        'n_estimators': [10, 25, 50],
+        'max_depth': [5, 10],
     }
     
-    # Create the LightGBM classifier
-    lgb_model = lgb.LGBMClassifier()
+    # Create the LightGBM regressor
+    lgb_model = lgb.LGBMRegressor(verbose=-1)
     
     # Perform randomized search for best parameters
-    randomized_search = RandomizedSearchCV(lgb_model, param_grid, n_iter=10, scoring='roc_auc', cv=3, random_state=42, verbose=1)
+    randomized_search = RandomizedSearchCV(lgb_model, 
+                                           param_grid, 
+                                           n_iter=100, 
+                                           scoring='neg_mean_squared_error', 
+                                           cv=3, 
+                                           random_state=42)
     randomized_search.fit(X_train, y_train)
     
     # Get the best parameters and score
@@ -115,7 +124,7 @@ def modeling(df):
     best_score = randomized_search.best_score_
     
     # Train the model with the best parameters
-    lgb_model = lgb.LGBMClassifier(**best_params)
+    lgb_model = lgb.LGBMRegressor(**best_params, verbose=-1)
     lgb_model.fit(X_train, y_train)
     
     # Make predictions on the test set
