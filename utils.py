@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 warnings.filterwarnings('ignore')
 
 not_modeling_variables = ['date', 'stock', 'date_refreshed', 'dif', 'target',
-                          'high', 'low', 'close', 'volume']
+                          'open', 'high', 'low', 'close', 'volume']
 
 def get_data(ticker, api_key='8JDWE75B6RS73XYH'):
     # Get data from api
@@ -53,43 +53,6 @@ def get_data(ticker, api_key='8JDWE75B6RS73XYH'):
     return df, meta_data
 
 
-def stock_feature_prep(df):
-    # Prepare the data to be used in the model
-    # df: pd.DataFrame, data from the stock
-
-    df = df.sort_values(by='date', ascending=False).head(720)
-
-    for column in ['open', 'high', 'low', 'close', 'volume']:
-        df[column] = df[column].apply(float)
-    
-    df['dif'] = df['close'].pct_change() * 100
-
-    for column in ['open', 'high', 'low', 'close', 'volume']:
-        for day in [1, 3, 7, 15, 30]:
-            # Calculate moving average
-            df[f'{column}_avg_{day}'] = df[column].rolling(window=day).mean().shift(1)
-
-            # Calculate maximum from previous row
-            df[f'{column}_max_{day}'] = df['close'].rolling(window=day).max().shift(1)
-
-            # Calculate minimum from previous row
-            df[f'{column}_min_{day}'] = df['close'].rolling(window=day).min().shift(1)
-
-            # Calculate standard deviation from previous row
-            df[f'{column}_std_{day}'] = df['close'].rolling(window=day).std().shift(1)
-
-            # Calculate the value based on the lag
-            df[f'{column}_lag_{day}'] = df['close'].shift(day)
-            
-    df['date'] = pd.to_datetime(df['date'])
-
-    df['day_of_the_week'] = df['date'].dt.dayofweek
-
-    df['month'] = df['date'].dt.month
-
-    df['target'] = np.where(df['dif'] > 1, 1, 0)
-
-    return df
 
 def modeling(df):
     X = df[[columns for columns in df.columns if columns not in not_modeling_variables]]
@@ -114,7 +77,7 @@ def modeling(df):
     randomized_search = RandomizedSearchCV(lgb_model, 
                                            param_grid, 
                                            n_iter=100, 
-                                           scoring='neg_mean_squared_error', 
+                                           scoring='r2', 
                                            cv=3, 
                                            random_state=42)
     randomized_search.fit(X_train, y_train)
@@ -131,3 +94,45 @@ def modeling(df):
     y_pred = lgb_model.predict(X_test)
 
     return lgb_model, best_params, best_score, y_pred, y_test
+
+
+def stock_feature_prep(df):
+    # Prepare the data to be used in the model
+    # df: pd.DataFrame, data from the stock
+
+    df = df.sort_values(by='date', ascending=False).head(720)
+
+    for column in ['open', 'high', 'low', 'close', 'volume']:
+        df[column] = df[column].apply(float)
+    
+    df['dif'] = df['close'].pct_change() * 100
+
+    for column in ['open', 'high', 'low', 'close', 'volume']:
+        for day in [1, 3, 7, 15, 30]:
+            # Calculate moving average
+            df[f'{column}_avg_{day}'] = df[column].rolling(window=day).mean()
+
+            # Calculate maximum from previous row
+            df[f'{column}_max_{day}'] = df['close'].rolling(window=day).max()
+
+            # Calculate minimum from previous row
+            df[f'{column}_min_{day}'] = df['close'].rolling(window=day).min()
+
+            # Calculate standard deviation from previous row
+            df[f'{column}_std_{day}'] = df['close'].rolling(window=day).std()
+
+            # Calculate the value based on the lag
+            df[f'{column}_lag_{day}'] = df['close'].shift(day)
+            
+    df['date'] = pd.to_datetime(df['date'])
+
+    attr = ['Year', 'Month', 'Week', 'Day', 'Dayofweek', 'Dayofyear', 'Is_month_end', 'Is_month_start',
+            'Is_quarter_end', 'Is_quarter_start', 'Is_year_end', 'Is_year_start']
+    
+    week = df['date'].dt.isocalendar().week.astype(df['date'].dt.day.dtype) if hasattr(df['date'].dt, 'isocalendar') else df['date'].dt.week
+
+    for n in attr: df[n] = getattr(df['date'].dt, n.lower()) if n != 'Week' else week
+
+    df['target'] = df['close'].shift(-1)
+
+    return df
