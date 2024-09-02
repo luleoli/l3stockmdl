@@ -63,11 +63,11 @@ def modeling(df):
     
     # Define the parameter grid for randomized search
     param_grid = {
-        'boosting_type': ['gbdt', 'dart', 'goss'],
-        'num_leaves': [20, 30, 40],
-        'learning_rate': [0.1, 0.01],
-        'n_estimators': [10, 25, 50],
-        'max_depth': [5, 10],
+        'num_leaves': [20, 30, 50, 70, 100],
+        'n_estimators': [10, 20, 100, 200, 500],
+        'max_depth': [3, 5, 12, 24, 48, 64, 128],
+        'learning_rate': [0.05, 0.1, 0.2, 0.3],
+        'boosting_type': ['gbdt', 'dart', 'goss']
     }
     
     # Create the LightGBM regressor
@@ -76,10 +76,11 @@ def modeling(df):
     # Perform randomized search for best parameters
     randomized_search = RandomizedSearchCV(lgb_model, 
                                            param_grid, 
-                                           n_iter=100, 
-                                           scoring='r2', 
+                                           n_iter=150, 
+                                           scoring='neg_root_mean_squared_error', 
                                            cv=3, 
                                            random_state=42)
+    
     randomized_search.fit(X_train, y_train)
     
     # Get the best parameters and score
@@ -100,12 +101,12 @@ def stock_feature_prep(df):
     # Prepare the data to be used in the model
     # df: pd.DataFrame, data from the stock
 
-    df = df.sort_values(by='date', ascending=False).head(720)
+    df = df.sort_values(by='date', ascending=False).head(360)
+    
+    df.sort_values(by='date', ascending=True, inplace=True)
 
     for column in ['open', 'high', 'low', 'close', 'volume']:
         df[column] = df[column].apply(float)
-    
-    df['dif'] = df['close'].pct_change() * 100
 
     for column in ['open', 'high', 'low', 'close', 'volume']:
         for day in [1, 3, 7, 15, 30]:
@@ -113,16 +114,16 @@ def stock_feature_prep(df):
             df[f'{column}_avg_{day}'] = df[column].rolling(window=day).mean()
 
             # Calculate maximum from previous row
-            df[f'{column}_max_{day}'] = df['close'].rolling(window=day).max()
+            df[f'{column}_max_{day}'] = df[column].rolling(window=day).max()
 
             # Calculate minimum from previous row
-            df[f'{column}_min_{day}'] = df['close'].rolling(window=day).min()
+            df[f'{column}_min_{day}'] = df[column].rolling(window=day).min()
 
             # Calculate standard deviation from previous row
-            df[f'{column}_std_{day}'] = df['close'].rolling(window=day).std()
+            df[f'{column}_std_{day}'] = df[column].rolling(window=day).std()
 
             # Calculate the value based on the lag
-            df[f'{column}_lag_{day}'] = df['close'].shift(day)
+            df[f'{column}_lag_{day}'] = df[column].shift(day)
             
     df['date'] = pd.to_datetime(df['date'])
 
