@@ -55,19 +55,36 @@ def get_data(ticker, api_key='8JDWE75B6RS73XYH'):
 
 
 def modeling(df):
-    X = df[[columns for columns in df.columns if columns not in not_modeling_variables]]
-    y = df['target']
 
-    # Split the data into train and test sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # Split the data into train, validation and test sets
+    # Priorize the test set being the last 7 days of the data
+
+    df_oot = df[df['date'] >= df['date'].max() - pd.DateOffset(days=2)]
+    df_train = df.loc[~df.index.isin(df_oot.index)]
+    
+    # Use the 20 most recent days to validate the model before those 7 days
+        
+    df_val = df_train[df_train['date'] >= df_train['date'].max() - pd.DateOffset(days=14)]
+
+    expl_vars = [columns for columns in df.columns if columns not in not_modeling_variables]
+
+    X_train = df_train[expl_vars]
+    y_train = df_train['target']
+
+    X_val = df_val[expl_vars]
+    y_val = df_val['target']
+
+    X_test = df_oot[expl_vars]
+    y_test = df_oot['target']
     
     # Define the parameter grid for randomized search
     param_grid = {
-        'num_leaves': [20, 30, 50, 70, 100],
-        'n_estimators': [10, 20, 100, 200, 500],
-        'max_depth': [3, 5, 12, 24, 48, 64, 128],
+        'num_leaves': [20, 30, 40],
+        'num_iterations': [50, 100, 200],
+        'max_depth': [3, 4, 5],
         'learning_rate': [0.05, 0.1, 0.2, 0.3],
-        'boosting_type': ['gbdt', 'dart', 'goss']
+        'boosting_type': ['gbdt', 'goss']
     }
     
     # Create the LightGBM regressor
@@ -76,12 +93,17 @@ def modeling(df):
     # Perform randomized search for best parameters
     randomized_search = RandomizedSearchCV(lgb_model, 
                                            param_grid, 
-                                           n_iter=150, 
+                                           n_iter=50, 
                                            scoring='neg_root_mean_squared_error', 
                                            cv=3, 
                                            random_state=42)
     
-    randomized_search.fit(X_train, y_train)
+    fit_params = {
+        'eval_metric': 'neg_root_mean_squared_error',
+        'eval_set': [(X_val, y_val)],
+    }
+
+    randomized_search.fit(X_train, y_train, **fit_params)
     
     # Get the best parameters and score
     best_params = randomized_search.best_params_
@@ -92,9 +114,9 @@ def modeling(df):
     lgb_model.fit(X_train, y_train)
     
     # Make predictions on the test set
-    y_pred = lgb_model.predict(X_test)
+    y_pred = lgb_model.predict(X_val)
 
-    return lgb_model, best_params, best_score, y_pred, y_test
+    return lgb_model, best_params, best_score, y_pred, y_val
 
 
 def stock_feature_prep(df):
