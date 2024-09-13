@@ -5,7 +5,7 @@ import numpy as np
 import warnings
 import lightgbm as lgb
 import datetime
-from sklearn.model_selection import train_test_split, RandomizedSearchCV
+from sklearn.model_selection import RandomizedSearchCV
 import matplotlib.pyplot as plt
 
 warnings.filterwarnings('ignore')
@@ -46,7 +46,7 @@ def get_data(ticker, api_key='8JDWE75B6RS73XYH'):
                             'stock': stock, 
                             'date_refreshed': date_refreshed})
     
-    current_date = datetime.datetime.now().strftime('%Y-%m-%d')
+    current_date = str(df.date.max())[:10]
     
     df.to_csv(f'./{stock[0]}_{current_date}.csv', index=False)
     
@@ -157,5 +157,7 @@ def stock_feature_prep(df):
     for n in attr: df[n] = getattr(df['date'].dt, n.lower()) if n != 'Week' else week
 
     df['target'] = df['close'].shift(-1)
+
+    df.to_csv(f'./databases/{df["stock"][0]}_FEAT_{str(df.date.max())[:10]}.csv')
 
     return df
