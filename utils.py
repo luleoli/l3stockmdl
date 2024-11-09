@@ -13,6 +13,22 @@ warnings.filterwarnings('ignore')
 not_modeling_variables = ['date', 'stock', 'date_refreshed', 'dif', 'target',
                           'open', 'high', 'low', 'close', 'volume']
 
+def get_data_real_time(ticker, api_key='cfUwFwaRDUGkRMdnCoBKJC'):
+    
+    # Get data from api
+    # ticker: str, stock ticker 'PETR4'
+    # api_key: str, api key to access the data
+
+    url = f'https://brapi.dev/api/quote/{ticker}?token={api_key}'
+    r = requests.get(url)
+    data = r.json()
+
+    results = data['results']
+    marketTime = results[0]['regularMarketTime']
+    marketPrice = results[0]['regularMarketPrice']
+
+    return marketTime, marketPrice
+
 def get_data(ticker, api_key='8JDWE75B6RS73XYH'):
     # Get data from api
     # ticker: str, stock ticker 'PETR4.SA.SAO'
@@ -48,7 +64,7 @@ def get_data(ticker, api_key='8JDWE75B6RS73XYH'):
     
     current_date = str(df.date.max())[:10]
     
-    df.to_csv(f'./{stock[0]}_{current_date}.csv', index=False)
+    df.to_csv(f'./databases/{stock[0]}_{current_date}.csv', index=False)
     
     return df, meta_data
 
@@ -74,18 +90,13 @@ def modeling(df):
 
     X_val = df_val[expl_vars]
     y_val = df_val['target']
-
-    X_test = df_oot[expl_vars]
-    y_test = df_oot['target']
     
     # Define the parameter grid for randomized search
-    param_grid = {
-        'num_leaves': [20, 30, 40],
-        'num_iterations': [50, 100, 200],
-        'max_depth': [3, 4, 5],
-        'learning_rate': [0.05, 0.1, 0.2, 0.3],
-        'boosting_type': ['gbdt', 'goss']
-    }
+    param_grid =    {'num_leaves': [20, 30, 40],
+                    'num_iterations': [50, 100, 200],
+                    'max_depth': [3, 4, 5],
+                    'learning_rate': [0.05, 0.1, 0.2, 0.3],
+                    'boosting_type': ['gbdt', 'goss']}
     
     # Create the LightGBM regressor
     lgb_model = lgb.LGBMRegressor(verbose=-1)
