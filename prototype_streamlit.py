@@ -4,15 +4,12 @@
 
 # Step 2: Import Libraries
 import streamlit as st
-import matplotlib.pyplot as plt
-import seaborn as sns
 import plotly.express as px
 import pandas as pd
 import numpy as np
 import joblib  # Assuming you used joblib to save your model
 import plotly.graph_objects as go
 from sklearn.metrics import r2_score, mean_absolute_error
-import lightgbm as lgb
 import shap
 import streamlit.components.v1 as components
 
