@@ -18,7 +18,7 @@ import streamlit.components.v1 as components
 
 # Step 3: Load Model and Data
 model = joblib.load('./mdl_versions/PETR4_2024-10-25.joblib')
-df = pd.read_csv('./databases/PETR4_FEAT_2024-10-25.csv')
+df = pd.read_csv('./PETR4_FEAT_2024-10-25.csv')
 df['predicted'] = model.predict(df[model.feature_name_])
 df.sort_values('date', inplace=True)
 # Filter the last 30 days
@@ -69,7 +69,7 @@ with col2:
     
     st.write('<div style="text-align: center"> Last Price: </div>', unsafe_allow_html=True)
     st.write(f"<h1 style='text-align: center'>{df['close'].values[-1]}</h1>", unsafe_allow_html=True)
-    st.write('<div style="text-align: center"> Close Price: </div>', unsafe_allow_html=True)
+    st.write('<div style="text-align: center"> Predicted Price: </div>', unsafe_allow_html=True)
     st.write(f"<h1 style='text-align: center'>{round(df['predicted'].values[-1],2)}</h1>", unsafe_allow_html=True)
 
 
